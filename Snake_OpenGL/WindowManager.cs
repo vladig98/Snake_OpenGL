@@ -4,6 +4,7 @@ public static class WindowManager
 {
     private static IWindow? _window;
     private static GL? _gl;
+    private static IInputContext? _input;
 
     // OpenGL Handles
     private static uint _vao;
@@ -15,7 +16,11 @@ public static class WindowManager
     private const int BaseWidth = 1800;
     private const int BaseHeight = 600;
     private const int _snakeSize = 50;
-    private static List<int> _snake = [10, 10];
+    //private static List<int> _snake = [10, 10];
+    private static List<Snake> _snake = [new(0, 0), new(1, 0)];
+
+    private static int _maxX = 0;
+    private static int _maxY = 0;
 
     private const string VertexShaderSource = @"#version 330 core
         layout (location = 0) in vec3 aPosition;
@@ -47,6 +52,9 @@ public static class WindowManager
         {
             throw new InvalidOperationException("Unsupported screen size");
         }
+
+        _maxX = xSquares;
+        _maxY = ySquares;
 
         _window.Run();
     }
@@ -112,8 +120,10 @@ public static class WindowManager
 
         for (int i = 0; i < _snake.Count; i++)
         {
-            float widthOffset = i * scaledWidth;
-            float heightOffset = i * scaledHeight;
+            Snake part = _snake[i];
+
+            float widthOffset = part.X * scaledWidth;
+            float heightOffset = part.Y * scaledHeight;
 
             // top right
             vertices.Add(-1f + scaledWidth + widthOffset); // x
@@ -213,21 +223,88 @@ public static class WindowManager
 
     private static void SetupInput()
     {
-        using IInputContext input = _window!.CreateInput();
-        foreach (IKeyboard keyboard in input.Keyboards)
+        _input = _window!.CreateInput();
+        foreach (IKeyboard keyboard in _input.Keyboards)
         {
             keyboard.KeyDown += (k, key, _) => 
             { 
                 if (key == Key.Escape) 
                 { 
                     _window!.Close(); 
-                } 
+                }
+
+                if (key == Key.Left)
+                {
+                    for (int i = _snake.Count - 1; i >= 0; i--)
+                    {
+                        Snake snakePart = _snake[i];
+                        int x = snakePart.X;
+                        x--;
+
+                        if (x < 0)
+                        {
+                            x += _maxX;
+                        }
+
+                        _snake[i] = snakePart with { X = x };
+                    }
+                }
+
+                if (key == Key.Right)
+                {
+                    for (int i = _snake.Count - 1; i >= 0; i--)
+                    {
+                        Snake snakePart = _snake[i];
+                        int x = snakePart.X;
+                        x++;
+
+                        if (x >= _maxX)
+                        {
+                            x -= _maxX;
+                        }
+
+                        _snake[i] = snakePart with { X = x };
+                    }
+                }
+
+                if (key == Key.Down)
+                {
+                    for (int i = _snake.Count - 1; i >= 0; i--)
+                    {
+                        Snake snakePart = _snake[i];
+                        int y = snakePart.Y;
+                        y++;
+
+                        if (y >= _maxY)
+                        {
+                            y -= _maxY;
+                        }
+
+                        _snake[i] = snakePart with { Y = y };
+                    }
+                }
+
+                if (key == Key.Up)
+                {
+                    for (int i = _snake.Count - 1; i >= 0; i--)
+                    {
+                        Snake snakePart = _snake[i];
+                        int y = snakePart.Y;
+                        y--;
+
+                        if (y < 0)
+                        {
+                            y += _maxY;
+                        }
+
+                        _snake[i] = snakePart with { Y = y };
+                    }
+                }
             };
         }
     }
 
     private static void OnUpdate(double deltaTime) 
     {
-        
     }
 }
