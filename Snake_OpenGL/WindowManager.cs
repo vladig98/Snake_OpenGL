@@ -14,8 +14,8 @@ public static class WindowManager
     // State
     private const int BaseWidth = 1800;
     private const int BaseHeight = 600;
-    private const int _snakeSize = 10;
-    private static List<int> _snake = [10];
+    private const int _snakeSize = 50;
+    private static List<int> _snake = [10, 10];
 
     private const string VertexShaderSource = @"#version 330 core
         layout (location = 0) in vec3 aPosition;
@@ -39,6 +39,14 @@ public static class WindowManager
         _window.Update += OnUpdate;
         _window.Render += OnRender;
         _window.FramebufferResize += (size) => _gl?.Viewport(0, 0, (uint)size.X, (uint)size.Y);
+
+        int xSquares = _window.Size.X / _snakeSize;
+        int ySquares = _window.Size.Y / _snakeSize;
+
+        if (xSquares * _snakeSize != _window.Size.X || ySquares * _snakeSize != _window.Size.Y)
+        {
+            throw new InvalidOperationException("Unsupported screen size");
+        }
 
         _window.Run();
     }
@@ -104,43 +112,49 @@ public static class WindowManager
 
         for (int i = 0; i < _snake.Count; i++)
         {
+            float widthOffset = i * scaledWidth;
+            float heightOffset = i * scaledHeight;
+
             // top right
-            vertices.Add(-1f + scaledWidth); // x
-            vertices.Add(1f); // y
+            vertices.Add(-1f + scaledWidth + widthOffset); // x
+            vertices.Add(1f - heightOffset); // y
             vertices.Add(0f); // z
 
             // bottom right
-            vertices.Add(-1f + scaledWidth); // x
-            vertices.Add(1f - scaledHeight); // y
+            vertices.Add(-1f + scaledWidth + widthOffset); // x
+            vertices.Add(1f - scaledHeight - heightOffset); // y
             vertices.Add(0f); // z
 
             // bottom left
-            vertices.Add(-1f); // x
-            vertices.Add(1f - scaledHeight); // y
+            vertices.Add(-1f + widthOffset); // x
+            vertices.Add(1f - scaledHeight - heightOffset); // y
             vertices.Add(0f); // z
 
             // top left
-            vertices.Add(-1f); // x
-            vertices.Add(1f); // y
+            vertices.Add(-1f + widthOffset); // x
+            vertices.Add(1f - heightOffset); // y
             vertices.Add(0f); // z
+
+            // 4 verticies for a square
+            uint offset = (uint)i * 4;
 
             // connecting
             // top right to
             // bottom right to
             // top left
             // triangle 1
-            indices.Add(0u);
-            indices.Add(1u);
-            indices.Add(3u);
+            indices.Add(0u + offset);
+            indices.Add(1u + offset);
+            indices.Add(3u + offset);
 
             // connecting
             // bottom right to
             // bottom left to
             // top left
             // triangle 2
-            indices.Add(1u);
-            indices.Add(2u);
-            indices.Add(3u);
+            indices.Add(1u + offset);
+            indices.Add(2u + offset);
+            indices.Add(3u + offset);
         }
 
         return new DrawingInfo([.. vertices], [.. indices]);
