@@ -135,7 +135,7 @@ public static class WindowManager
             vertices.Add(1f - heightOffset); // y
             vertices.Add(0f); // z
 
-            // 4 verticies for a square
+            // 4 vertices for a square
             uint offset = (uint)i * 4;
 
             // connecting
