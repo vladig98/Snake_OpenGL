@@ -14,6 +14,7 @@ public static class WindowManager
     // State
     private const int BaseWidth = 1800;
     private const int BaseHeight = 600;
+    private const int _snakeSize = 10;
     private static List<int> _snake = [10];
 
     private const string VertexShaderSource = @"#version 330 core
@@ -89,26 +90,38 @@ public static class WindowManager
         List<float> vertices = [];
         List<uint> indices = [];
 
+        float windowWidth = _window!.Size.X;
+        float windowHeight = _window!.Size.Y;
+
+        float percentageOfWidth = _snakeSize / windowWidth;
+        float percentageOfHeight = _snakeSize / windowHeight;
+
+        // -1 to 1
+        const float openGlScale = 2.0f;
+
+        float scaledWidth = percentageOfWidth * openGlScale;
+        float scaledHeight = percentageOfHeight * openGlScale;
+
         for (int i = 0; i < _snake.Count; i++)
         {
             // top right
-            vertices.Add(0.5f); // x
-            vertices.Add(0.5f); // y
+            vertices.Add(-1f + scaledWidth); // x
+            vertices.Add(1f); // y
             vertices.Add(0f); // z
 
             // bottom right
-            vertices.Add(0.5f); // x
-            vertices.Add(-0.5f); // y
+            vertices.Add(-1f + scaledWidth); // x
+            vertices.Add(1f - scaledHeight); // y
             vertices.Add(0f); // z
 
             // bottom left
-            vertices.Add(-0.5f); // x
-            vertices.Add(-0.5f); // y
+            vertices.Add(-1f); // x
+            vertices.Add(1f - scaledHeight); // y
             vertices.Add(0f); // z
 
             // top left
-            vertices.Add(-0.5f); // x
-            vertices.Add(0.5f); // y
+            vertices.Add(-1f); // x
+            vertices.Add(1f); // y
             vertices.Add(0f); // z
 
             // connecting
