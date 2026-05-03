@@ -17,7 +17,7 @@ public static class WindowManager
     private const int BaseHeight = 600;
     private const int _snakeSize = 50;
     //private static List<int> _snake = [10, 10];
-    private static List<Snake> _snake = [new(0, 0), new(1, 0)];
+    private static List<Snake> _snake = [new(0, 0), new(1, 0), new(2, 0), new(3, 0), new(4, 0), new(5, 0)];
 
     private static int _maxX = 0;
     private static int _maxY = 0;
@@ -235,70 +235,86 @@ public static class WindowManager
 
                 if (key == Key.Left)
                 {
-                    for (int i = _snake.Count - 1; i >= 0; i--)
+                    for (int i = _snake.Count - 1; i >= 1; i--)
                     {
                         Snake snakePart = _snake[i];
-                        int x = snakePart.X;
-                        x--;
+                        Snake predecessorPart = _snake[i - 1];
 
-                        if (x < 0)
-                        {
-                            x += _maxX;
-                        }
-
-                        _snake[i] = snakePart with { X = x };
+                        _snake[i] = _snake[i] with { X = predecessorPart.X, Y = predecessorPart.Y };
                     }
+
+                    int x = _snake[0].X;
+                    x--;
+
+                    if (x < 0)
+                    {
+                        x += _maxX;
+                    }
+
+                    _snake[0] = _snake[0] with { X = x };
                 }
 
                 if (key == Key.Right)
                 {
-                    for (int i = _snake.Count - 1; i >= 0; i--)
+                    for (int i = _snake.Count - 1; i >= 1; i--)
                     {
                         Snake snakePart = _snake[i];
-                        int x = snakePart.X;
-                        x++;
+                        Snake predecessorPart = _snake[i - 1];
 
-                        if (x >= _maxX)
-                        {
-                            x -= _maxX;
-                        }
-
-                        _snake[i] = snakePart with { X = x };
+                        _snake[i] = _snake[i] with { X = predecessorPart.X, Y = predecessorPart.Y };
                     }
+
+                    int x = _snake[0].X;
+                    x++;
+
+                    if (x >= _maxX)
+                    {
+                        x -= _maxX;
+                    }
+
+                    _snake[0] = _snake[0] with { X = x };
                 }
 
                 if (key == Key.Down)
                 {
-                    for (int i = _snake.Count - 1; i >= 0; i--)
+                    for (int i = _snake.Count - 1; i >= 1; i--)
                     {
                         Snake snakePart = _snake[i];
-                        int y = snakePart.Y;
-                        y++;
+                        Snake predecessorPart = _snake[i - 1];
 
-                        if (y >= _maxY)
-                        {
-                            y -= _maxY;
-                        }
-
-                        _snake[i] = snakePart with { Y = y };
+                        _snake[i] = _snake[i] with { X = predecessorPart.X, Y = predecessorPart.Y };
                     }
+
+                    int y = _snake[0].Y;
+                    y++;
+
+                    if (y >= _maxY)
+                    {
+                        y -= _maxY;
+                    }
+
+                    _snake[0] = _snake[0] with { Y = y };
                 }
 
                 if (key == Key.Up)
                 {
-                    for (int i = _snake.Count - 1; i >= 0; i--)
+                    for (int i = _snake.Count - 1; i >= 1; i--)
                     {
                         Snake snakePart = _snake[i];
-                        int y = snakePart.Y;
-                        y--;
+                        Snake predecessorPart = _snake[i - 1];
 
-                        if (y < 0)
-                        {
-                            y += _maxY;
-                        }
-
-                        _snake[i] = snakePart with { Y = y };
+                        _snake[i] = _snake[i] with { X = predecessorPart.X, Y = predecessorPart.Y };
                     }
+
+                    int y = _snake[0].Y;
+                    y--;
+
+                    if (y < 0)
+                    {
+                        y += _maxY;
+                    }
+
+                    _snake[0] = _snake[0] with { Y = y };
                 }
             };
         }
