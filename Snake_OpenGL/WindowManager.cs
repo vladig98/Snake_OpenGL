@@ -16,11 +16,19 @@ public static class WindowManager
     private const int BaseWidth = 1800;
     private const int BaseHeight = 600;
     private const int _snakeSize = 50;
-    //private static List<int> _snake = [10, 10];
-    private static List<Snake> _snake = [new(0, 0), new(1, 0), new(2, 0), new(3, 0), new(4, 0), new(5, 0)];
+    private static readonly List<Snake> _snake = [];
+    private static Snake _food = new();
 
     private static int _maxX = 0;
     private static int _maxY = 0;
+
+    private static int _dirX = 1;
+    private static int _dirY = 0;
+
+    private static readonly Stopwatch _gameLoop = new();
+    private static readonly int _updateTime = 200;
+
+    private static bool _isGameOver = false;
 
     private const string VertexShaderSource = @"#version 330 core
         layout (location = 0) in vec3 aPosition;
@@ -28,15 +36,15 @@ public static class WindowManager
 
     private const string FragmentShaderSource = @"#version 330 core
         out vec4 out_color;
-        void main() { out_color = vec4(1.0, 0.5, 0.2, 1.0); }";
+        uniform vec4 u_Color;
+        void main() { out_color = u_Color; }";
 
     public static void Initialize()
     {
         WindowOptions options = WindowOptions.Default with
         {
             Size = new Vector2D<int>(BaseWidth, BaseHeight),
-            Title = "Snake Game",
-            FramesPerSecond = 10
+            Title = "Snake Game"
         };
 
         _window = Window.Create(options);
@@ -56,7 +64,52 @@ public static class WindowManager
         _maxX = xSquares;
         _maxY = ySquares;
 
+        for (int i = 5; i >= 0; i--)
+        {
+            _snake.Add(new Snake(X: i, Y: 0));
+        }
+
+        _food = PickLocation();
+
+        _gameLoop.Start();
         _window.Run();
+    }
+
+    private static Snake PickLocation()
+    {
+        List<ulong> positons = [];
+        for (int i = 0; i < _maxX; i++)
+        {
+            for (int j = 0; j < _maxY; j++)
+            {
+                ulong pos = PackBits(i, j);
+                positons.Add(pos);
+            }
+        }
+
+        for (int i = 0; i < _snake.Count; i++)
+        {
+            Snake current = _snake[i];
+            ulong snakePos = PackBits(current.X, current.Y);
+            positons.Remove(snakePos);
+        }
+
+        int index = Random.Shared.Next(0, positons.Count);
+        ulong foodPos = positons[index];
+
+        (int x, int y) = UnpackBits(foodPos);
+
+        return new Snake(X: x, Y: y);
+    }
+
+    private static (int x, int y) UnpackBits(ulong pos)
+    {
+        return ((int)(pos >> 32), (int)pos);
+    }
+
+    private static ulong PackBits(int i, int j)
+    {
+        return ((ulong)(uint)i << 32) | (uint)j;
     }
 
     private static unsafe void OnLoad()
@@ -98,7 +151,34 @@ public static class WindowManager
 
         _gl.UseProgram(_program);
         _gl.BindVertexArray(_vao);
-        _gl.DrawElements(PrimitiveType.Triangles, (uint)drawingInfo.Indices.Length, DrawElementsType.UnsignedInt, (void*)0);
+
+        int colorLocation = _gl.GetUniformLocation(_program, "u_Color");
+
+        // --- 1. DRAW THE HEAD ---
+        _gl.Uniform4(colorLocation, 0.0f, 0.0f, 0.0f, 1.0f); // Black
+        _gl.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, (void*)0);
+
+        // --- 2. DRAW THE BODY ---
+        // We check for > 12 because 6 indices belong to the head, and 6 belong to the food.
+        if (drawingInfo.Indices.Length > 12)
+        {
+            _gl.Uniform4(colorLocation, 0.62f, 0.588f, 0.573f, 1.0f); // Brown
+
+            // Subtract the head (6) and the food (6) to get just the body
+            uint bodyIndicesCount = (uint)drawingInfo.Indices.Length - 12;
+
+            // Skip the first 6 indices (the head)
+            _gl.DrawElements(PrimitiveType.Triangles, bodyIndicesCount, DrawElementsType.UnsignedInt, (void*)(6 * sizeof(uint)));
+        }
+
+        // --- 3. DRAW THE FOOD ---
+        _gl.Uniform4(colorLocation, 1.0f, 0.0f, 0.0f, 1.0f); // Red
+
+        // The food is exactly the last 6 indices in the array
+        uint foodOffset = (uint)drawingInfo.Indices.Length - 6;
+
+        // Skip all the indices that belong to the head and the body
+        _gl.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, (void*)(foodOffset * sizeof(uint)));
     }
 
     private static DrawingInfo GenerateGeometry()
@@ -117,6 +197,9 @@ public static class WindowManager
 
         float scaledWidth = percentageOfWidth * openGlScale;
         float scaledHeight = percentageOfHeight * openGlScale;
+
+        // 4 vertices for a square
+        const uint _squareFaces = 4;
 
         for (int i = 0; i < _snake.Count; i++)
         {
@@ -145,8 +228,7 @@ public static class WindowManager
             vertices.Add(1f - heightOffset); // y
             vertices.Add(0f); // z
 
-            // 4 vertices for a square
-            uint offset = (uint)i * 4;
+            uint offset = (uint)i * _squareFaces;
 
             // connecting
             // top right to
@@ -166,6 +248,48 @@ public static class WindowManager
             indices.Add(2u + offset);
             indices.Add(3u + offset);
         }
+
+        float foodWidthOffset = _food.X * scaledWidth;
+        float foodHeightOffset = _food.Y * scaledHeight;
+        uint foodOffset = (uint)_snake.Count * _squareFaces;
+
+        // top right
+        vertices.Add(-1f + scaledWidth + foodWidthOffset); // x
+        vertices.Add(1f - foodHeightOffset); // y
+        vertices.Add(0f); // z
+
+        // bottom right
+        vertices.Add(-1f + scaledWidth + foodWidthOffset); // x
+        vertices.Add(1f - scaledHeight - foodHeightOffset); // y
+        vertices.Add(0f); // z
+
+        // bottom left
+        vertices.Add(-1f + foodWidthOffset); // x
+        vertices.Add(1f - scaledHeight - foodHeightOffset); // y
+        vertices.Add(0f); // z
+
+        // top left
+        vertices.Add(-1f + foodWidthOffset); // x
+        vertices.Add(1f - foodHeightOffset); // y
+        vertices.Add(0f); // z
+
+        // connecting
+        // top right to
+        // bottom right to
+        // top left
+        // triangle 1
+        indices.Add(0u + foodOffset);
+        indices.Add(1u + foodOffset);
+        indices.Add(3u + foodOffset);
+
+        // connecting
+        // bottom right to
+        // bottom left to
+        // top left
+        // triangle 2
+        indices.Add(1u + foodOffset);
+        indices.Add(2u + foodOffset);
+        indices.Add(3u + foodOffset);
 
         return new DrawingInfo([.. vertices], [.. indices]);
     }
@@ -221,6 +345,76 @@ public static class WindowManager
         return shader;
     }
 
+    private static void UpdateSnake()
+    {
+        if (_isGameOver)
+        {
+            return;
+        }
+
+        int x = _snake[0].X;
+        int y = _snake[0].Y;
+
+        x += _dirX;
+        y += _dirY;
+
+        if (x < 0)
+        {
+            x += _maxX;
+        }
+
+        if (x >= _maxX)
+        {
+            x -= _maxX;
+        }
+
+        if (y >= _maxY)
+        {
+            y -= _maxY;
+        }
+
+        if (y < 0)
+        {
+            y += _maxY;
+        }
+
+        _isGameOver = IsGameOver(x, y);
+        if (_isGameOver)
+        {
+            return;
+        }
+
+        // We eat the food
+        if (x == _food.X && y == _food.Y)
+        {
+            _snake.Insert(0, _food);
+            _food = PickLocation();
+
+            return;
+        }
+
+        for (int i = _snake.Count - 1; i >= 1; i--)
+        {
+            Snake predecessorPart = _snake[i - 1];
+            _snake[i] = _snake[i] with { X = predecessorPart.X, Y = predecessorPart.Y };
+        }
+
+        _snake[0] = _snake[0] with { X = x, Y = y };
+    }
+
+    private static bool IsGameOver(int x, int y)
+    {
+        for (int i = 1; i < _snake.Count; i++)
+        {
+            if (x == _snake[i].X && y == _snake[i].Y)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static void SetupInput()
     {
         _input = _window!.CreateInput();
@@ -235,86 +429,26 @@ public static class WindowManager
 
                 if (key == Key.Left)
                 {
-                    for (int i = _snake.Count - 1; i >= 1; i--)
-                    {
-                        Snake snakePart = _snake[i];
-                        Snake predecessorPart = _snake[i - 1];
-
-                        _snake[i] = _snake[i] with { X = predecessorPart.X, Y = predecessorPart.Y };
-                    }
-
-                    int x = _snake[0].X;
-                    x--;
-
-                    if (x < 0)
-                    {
-                        x += _maxX;
-                    }
-
-                    _snake[0] = _snake[0] with { X = x };
+                    _dirX = -1;
+                    _dirY = 0;
                 }
 
                 if (key == Key.Right)
                 {
-                    for (int i = _snake.Count - 1; i >= 1; i--)
-                    {
-                        Snake snakePart = _snake[i];
-                        Snake predecessorPart = _snake[i - 1];
-
-                        _snake[i] = _snake[i] with { X = predecessorPart.X, Y = predecessorPart.Y };
-                    }
-
-                    int x = _snake[0].X;
-                    x++;
-
-                    if (x >= _maxX)
-                    {
-                        x -= _maxX;
-                    }
-
-                    _snake[0] = _snake[0] with { X = x };
+                    _dirX = 1;
+                    _dirY = 0;
                 }
 
                 if (key == Key.Down)
                 {
-                    for (int i = _snake.Count - 1; i >= 1; i--)
-                    {
-                        Snake snakePart = _snake[i];
-                        Snake predecessorPart = _snake[i - 1];
-
-                        _snake[i] = _snake[i] with { X = predecessorPart.X, Y = predecessorPart.Y };
-                    }
-
-                    int y = _snake[0].Y;
-                    y++;
-
-                    if (y >= _maxY)
-                    {
-                        y -= _maxY;
-                    }
-
-                    _snake[0] = _snake[0] with { Y = y };
+                    _dirX = 0;
+                    _dirY = 1;
                 }
 
                 if (key == Key.Up)
                 {
-                    for (int i = _snake.Count - 1; i >= 1; i--)
-                    {
-                        Snake snakePart = _snake[i];
-                        Snake predecessorPart = _snake[i - 1];
-
-                        _snake[i] = _snake[i] with { X = predecessorPart.X, Y = predecessorPart.Y };
-                    }
-
-                    int y = _snake[0].Y;
-                    y--;
-
-                    if (y < 0)
-                    {
-                        y += _maxY;
-                    }
-
-                    _snake[0] = _snake[0] with { Y = y };
+                    _dirX = 0;
+                    _dirY = -1;
                 }
             };
         }
@@ -322,5 +456,10 @@ public static class WindowManager
 
     private static void OnUpdate(double deltaTime) 
     {
+        if (_gameLoop.ElapsedMilliseconds > _updateTime)
+        {
+            UpdateSnake();
+            _gameLoop.Restart();
+        }
     }
 }
